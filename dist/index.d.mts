@@ -1,13 +1,17 @@
-declare function start({ firstName, lastName, age }: {
-    firstName: String;
-    lastName: String;
-    age: Number;
-}): void;
+type StartProps = {
+    imvci: number;
+    igi: number;
+    igv: number;
+    type: string;
+    StreamFile?: string;
+    StreamLink?: string;
+};
+type StopProps = {
+    igi: number;
+};
 
-declare function stop({ firstName, lastName, age }: {
-    firstName: String;
-    lastName: String;
-    age: Number;
-}): void;
+declare function StreamStart({ imvci, igi, igv, type, StreamFile, StreamLink }: StartProps): void;
 
-export { start, stop };
+declare function StreamStop({ igi, }: StopProps): void;
+
+export { StreamStart, StreamStop };
