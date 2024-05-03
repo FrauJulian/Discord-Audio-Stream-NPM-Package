@@ -1,34 +1,35 @@
 {
-  "name": "@discord.js/radio",
-  "version": "0.0.1",
-  "description": "🖼️ NPM Package to stream any audio link on discord. ",
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
-  "scripts": {
-    "build": "tsup"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/FrauJulian/discord.js-radio.git"
-  },
-  "keywords": [
-    "discord.js",
-    "stream",
-    "audio",
-    "radio"
-  ],
-  "author": "FrauJulian | Julian Lechner",
-  "license": "BSD-3-Clause",
-  "bugs": {
-    "url": "https://github.com/FrauJulian/discord.js-radio/issues"
-  },
-  "homepage": "https://github.com/FrauJulian/discord.js-radio#readme",
-  "devDependencies": {
-    "tsup": "^8.0.2",
-    "typescript": "^5.4.5"
-  },
-  "dependencies": {
-    "my-package": "^0.0.0"
+    "name": "@discord.js/radio",
+    "version": "0.0.1",
+    "description": "🖼️ NPM Package to stream any audio link on discord. ",
+    "main": "./dist/index.js",
+    "module": "./dist/index.mjs",
+    "types": "./dist/index.d.ts",
+    "scripts": {
+      "build": "tsup"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/FrauJulian/discord.js-radio.git"
+    },
+    "keywords": [
+      "discord.js",
+      "stream",
+      "audio",
+      "radio"
+    ],
+    "author": "FrauJulian | Julian Lechner",
+    "license": "BSD-3-Clause",
+    "bugs": {
+      "url": "https://github.com/FrauJulian/discord.js-radio/issues"
+    },
+    "homepage": "https://github.com/FrauJulian/discord.js-radio#readme",
+    "devDependencies": {
+      "tsup": "^8.0.2",
+      "typescript": "^5.4.5"
+    },
+    "dependencies": {
+      "my-package": "^0.0.0"
+    }
   }
-}
+  
