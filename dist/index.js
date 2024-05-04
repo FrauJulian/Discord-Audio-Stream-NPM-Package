@@ -1,7 +1,9 @@
 "use strict";
+var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all) => {
   for (var name in all)
@@ -15,6 +17,14 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
@@ -38,34 +48,46 @@ function ERROR() {
 }
 
 // src/functions/start.ts
+var import_fs = __toESM(require("fs"));
+var import_node_path = require("path");
 var { joinVoiceChannel, createAudioPlayer, createAudioResource } = require("@discordjs/voice");
-var { join } = require("path");
 function StreamStart({
   imvci,
   igi,
   igv,
   type,
-  StreamFile,
-  StreamLink
+  Resource
 }) {
   try {
+    let FileResource2 = function() {
+      let Audio = createAudioResource((0, import_node_path.join)(__dirname, Resource), { inlineVolume: true });
+      AudioPlayer.play(Audio);
+      joinVoiceChannel({
+        channelId: imvci,
+        guildId: igi,
+        adapterCreator: igv
+      }).subscribe(AudioPlayer);
+    }, LinkResource2 = function() {
+      let Audio = createAudioResource(Resource);
+      AudioPlayer.play(Audio);
+      joinVoiceChannel({
+        channelId: imvci,
+        guildId: igi,
+        adapterCreator: igv
+      }).subscribe(AudioPlayer);
+    };
+    var FileResource = FileResource2, LinkResource = LinkResource2;
     const AudioPlayer = createAudioPlayer();
-    if (type === "File") {
-      let Audio = createAudioResource(StreamLink);
-      AudioPlayer.play(Audio);
-      joinVoiceChannel({
-        channelId: imvci,
-        guildId: igi,
-        adapterCreator: igv
-      }).subscribe(AudioPlayer);
-    } else if (type === "Link") {
-      const Audio = createAudioResource(join(__dirname, StreamFile));
-      AudioPlayer.play(Audio);
-      joinVoiceChannel({
-        channelId: imvci,
-        guildId: igi,
-        adapterCreator: igv
-      }).subscribe(AudioPlayer);
+    if (type === "Link") {
+      LinkResource2();
+    } else if (type === "File") {
+      FileResource2();
+    } else if (type === "Analyze") {
+      if (import_fs.default.existsSync(Resource)) {
+        FileResource2();
+      } else {
+        LinkResource2();
+      }
     } else {
       ERROR();
     }

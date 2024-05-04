@@ -7,9 +7,11 @@ export function StreamStop({
     igi,
 }: StopProps) {
     try {
-
+        //Get connection from interaction guild.
         const connection = getVoiceConnection(igi);
-        connection.disconnect();
+
+        //Destroy connection from interaction guild.
+        connection.destroy();
         
     } catch (error) {
         ERROR();

@@ -26,34 +26,46 @@ function ERROR() {
 }
 
 // src/functions/start.ts
+import fs from "fs";
+import { join } from "node:path";
 var { joinVoiceChannel, createAudioPlayer, createAudioResource } = __require("@discordjs/voice");
-var { join } = __require("node:path");
 function StreamStart({
   imvci,
   igi,
   igv,
   type,
-  StreamFile,
-  StreamLink
+  Resource
 }) {
   try {
+    let FileResource2 = function() {
+      let Audio = createAudioResource(join(__dirname, Resource), { inlineVolume: true });
+      AudioPlayer.play(Audio);
+      joinVoiceChannel({
+        channelId: imvci,
+        guildId: igi,
+        adapterCreator: igv
+      }).subscribe(AudioPlayer);
+    }, LinkResource2 = function() {
+      let Audio = createAudioResource(Resource);
+      AudioPlayer.play(Audio);
+      joinVoiceChannel({
+        channelId: imvci,
+        guildId: igi,
+        adapterCreator: igv
+      }).subscribe(AudioPlayer);
+    };
+    var FileResource = FileResource2, LinkResource = LinkResource2;
     const AudioPlayer = createAudioPlayer();
-    if (type === "File") {
-      let Audio = createAudioResource(StreamLink);
-      AudioPlayer.play(Audio);
-      joinVoiceChannel({
-        channelId: imvci,
-        guildId: igi,
-        adapterCreator: igv
-      }).subscribe(AudioPlayer);
-    } else if (type === "Link") {
-      const Audio = createAudioResource(join(__dirname, StreamFile));
-      AudioPlayer.play(Audio);
-      joinVoiceChannel({
-        channelId: imvci,
-        guildId: igi,
-        adapterCreator: igv
-      }).subscribe(AudioPlayer);
+    if (type === "Link") {
+      LinkResource2();
+    } else if (type === "File") {
+      FileResource2();
+    } else if (type === "Analyze") {
+      if (fs.existsSync(Resource)) {
+        FileResource2();
+      } else {
+        LinkResource2();
+      }
     } else {
       ERROR();
     }

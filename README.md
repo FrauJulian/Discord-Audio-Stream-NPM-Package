@@ -35,9 +35,8 @@ Audio.StreamStart({
     imvci: 0, //Voice Channel ID e.g. interaction.member.voice.channel.id
     igi: 0, //Guild ID e.g. interaction.guild.id
     igv: 0, //Bot Voice Adapter e.g. interaction.guild.voiceAdapterCreator
-    type: "Link", //Choose the Stream resource - File or Link 
-    StreamFile: "", //Link to File e.g. ../assets/Stream.mp3
-    StreamLink: "" //Link to Audio Stream e.g. YouTube Video or LautFM Stream Link
+    type: "", //Choose the Stream resource - File or Link or Analyze
+    Resource: "", //Link to File e.g. ../assets/Stream.mp3 or Link to Audio Stream e.g. YouTube Video or LautFM Stream Link
 })
 ```
 
@@ -52,4 +51,4 @@ Audio.StreamStart({
 
 ## 🤝 Enjoy the package?
 
-Give it a star ⭐ on github!
+Give it a star ⭐ on github or [donate](https://buymeacoffee.com/fraujuliannn) a hot chocolate!

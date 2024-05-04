@@ -3,14 +3,13 @@ type StartProps = {
     igi: number;
     igv: number;
     type: string;
-    StreamFile?: string;
-    StreamLink?: string;
+    Resource: string;
 };
 type StopProps = {
     igi: number;
 };
 
-declare function StreamStart({ imvci, igi, igv, type, StreamFile, StreamLink }: StartProps): void;
+declare function StreamStart({ imvci, igi, igv, type, Resource, }: StartProps): void;
 
 declare function StreamStop({ igi, }: StopProps): void;
 
