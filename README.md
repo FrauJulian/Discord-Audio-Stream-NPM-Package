@@ -16,7 +16,7 @@ Pease create a bug post on github or write [`fraujulian`](https://discord.com/us
 
 ## 📝 Usage
 
-### Install Package
+### Install package
 ```
 npm i discord-audio-stream
 ```
@@ -27,7 +27,7 @@ or
 yarn add discord-audio-stream
 ```
 
-### Start Audio Stream
+### Code Snippet - Start
 ```js
 const Audio = require("discord-audio-stream");
 
@@ -40,7 +40,7 @@ Audio.StreamStart({
 })
 ```
 
-### Stop Audio Stream
+### Code Snippet - Stop
 ```js
 const Audio = require("discord-audio-stream");
 
@@ -51,4 +51,4 @@ Audio.StreamStart({
 
 ## 🤝 Enjoy the package?
 
-Give it a star ⭐ on github or [donate](https://buymeacoffee.com/fraujuliannn) a hot chocolate!
+Give it a star ⭐ on [github](https://github.com/FrauJulian/discord-audio-stream) or [donate](https://buymeacoffee.com/fraujuliannn) a hot chocolate!

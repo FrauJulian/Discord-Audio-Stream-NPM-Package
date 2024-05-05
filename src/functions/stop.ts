@@ -14,8 +14,8 @@ export function StreamStop({
         connection.destroy();
         
     } catch (error) {
-        ERROR();
-        console.log("ERR:\n" + error);
-        console.log(" ");
+        ERROR(); //Run ERROR function.
+        console.log(">> ERR:\n" + error); //Log the Error 
+        console.log(" "); //Placeholder xD
     }
 };

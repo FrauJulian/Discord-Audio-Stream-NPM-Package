@@ -1,8 +1,9 @@
 import { StartProps } from "../stuff/types";
 import { ERROR } from "../stuff/error";
-import fs from "fs";
+
 import { join } from "node:path";
-import { AudioPlayer } from "@discordjs/voice";
+
+let Source = "";
 
 const { joinVoiceChannel,  createAudioPlayer,  createAudioResource } = require("@discordjs/voice");
 
@@ -17,52 +18,89 @@ export function StreamStart({
         //Create AudioPlayer variable.
         const AudioPlayer = createAudioPlayer();
 
-        //File Resource
+        //Play function for file resource.
         function FileResource() {
             
-            let Audio = createAudioResource(join(__dirname, Resource), { inlineVolume: true });
-            AudioPlayer.play(Audio);
+            let Audio = createAudioResource(join(__dirname, Source)); //Fetch stream File.
+            AudioPlayer.play(Audio); //Set AudioPlayer to resource File.
     
-            joinVoiceChannel({
+            joinVoiceChannel({ //Join the channel.
               channelId: imvci,
               guildId: igi,
               adapterCreator: igv
-            }).subscribe(AudioPlayer);  
+            }).subscribe(AudioPlayer); //AudioPlayer start playing audio.
         }
 
-        //Link Resource
+        //Play function for link resource.
         function LinkResource() {
-            let Audio = createAudioResource(Resource);
-            AudioPlayer.play(Audio);
+            let Audio = createAudioResource(Resource); //Fetch stream Link.
+            AudioPlayer.play(Audio); //Set AudioPlayer to resource Link.
 
-            joinVoiceChannel({
+            joinVoiceChannel({ //Join the channel.
                 channelId: imvci,
                 guildId: igi,
                 adapterCreator: igv
-            }).subscribe(AudioPlayer)
+            }).subscribe(AudioPlayer) //AudioPlayer start playing audio.
         }
 
-        //If the type is "Link".
-        if (type === "Link") {
-            LinkResource();
-        //If the type is "File".
-        } else if (type === "File") {
-            FileResource();
-        //If the type is "Analyze".
-        } else if (type === "Analyze") {
-            if (fs.existsSync(Resource)) { //Check if Resource is a file and exist.
-                FileResource();
-            } else { //If Resoure is not a file or doesn't exist.
-                LinkResource();
+        //URL Pattern to test if the resource is a link.
+        var URLPattern = new RegExp('^(https?:\\/\\/)?'+
+        '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.?)+[a-z]{2,}|'+
+        '((\\d{1,3}\\.){3}\\d{1,3}))'+
+        '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*'+
+        '(\\?[;&a-z\\d%_.~+=-]*)?'+
+        '(\\#[-a-z\\d_]*)?$','i');
+
+        if (type === "Link") { //If the type is "Link".
+
+            if (URLPattern.test(Resource) === true) { //Check if Link is a URL.
+
+                LinkResource(); //Run LinkResource function.
+
+            } else { //If resource is not a link.
+                ERROR(); //Run ERROR function.
+                console.log("CODE: Resource isn't a Link!") //"Error Code" usefull for help people.
+                console.log(" ") //Placeholder xD
             }
-        } else {
-            //If no valid value is specified.
-            ERROR();
+
+        } else if (type === "File") { //If the type is "File".
+            if (Resource.startsWith(".") == true) { //Check if the resource file exist.
+
+                Source = require(Resource); //Set Source variable to Audio File.
+                FileResource(); //Run FileResource function.
+
+            } else { //If resource is not a file.
+                ERROR(); //Run ERROR function.
+                console.log("CODE: Resource isn't a File!") //"Error Code" usefull for help people.
+                console.log(" ") //Placeholder xD
+            }
+
+        } else if (type === "Analyze") { //If the type is "Analyze".
+
+            if (Resource.startsWith(".") == true) { //Check if the resource file exist.
+
+                Source = require(Resource); //Set Source variable to Audio File.
+                FileResource(); //Run FileResource function.
+
+            } else if (URLPattern.test(Resource) === true) { //Check if Link is a URL.
+
+                LinkResource(); //Run LinkResource function.
+
+            } else { //If resource is not a link or file.
+                ERROR(); //Run ERROR function.
+                console.log("CODE: Resource isn't a Link or a File!") //"Error Code" usefull for help people.
+                console.log(" ") //Placeholder xD
+            }
+
+        } else { //If no valid value is specified.
+            ERROR(); //Run ERROR function.
+            console.log("CODE: Unknown resource type!") //"Error Code" usefull for help people.
+            console.log(" ") //Placeholder xD
         }
-    } catch (error) {
-        //If syntax is wrong.
-        ERROR();
-        console.log("ERR:\n" + error);
-        console.log(" ");
+
+    } catch (error) { //If syntax is wrong.
+        ERROR(); //Run ERROR function.
+        console.log(">> ERR:\n" + error); //Log the Error 
+        console.log(" "); //Placeholder xD
     }
 };
