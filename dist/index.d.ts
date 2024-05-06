@@ -9,7 +9,7 @@ type StopProps = {
     igi: number;
 };
 
-declare function StreamStart({ imvci, igi, igv, type, Resource, }: StartProps): void;
+declare function StreamStart({ imvci, igi, igv, type, Resource, }: StartProps): "Unknown" | undefined;
 
 declare function StreamStop({ igi, }: StopProps): void;
 

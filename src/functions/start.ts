@@ -1,9 +1,7 @@
 import { StartProps } from "../stuff/types";
 import { ERROR } from "../stuff/error";
 
-import { join } from "node:path";
-
-let Source = "";
+import { join } from "path";
 
 const { joinVoiceChannel,  createAudioPlayer,  createAudioResource } = require("@discordjs/voice");
 
@@ -20,8 +18,8 @@ export function StreamStart({
 
         //Play function for file resource.
         function FileResource() {
-            
-            let Audio = createAudioResource(join(__dirname, Source)); //Fetch stream File.
+
+            let Audio = createAudioResource(join(__dirname, Resource), { inlineVolume: true }); //Fetch stream File.
             AudioPlayer.play(Audio); //Set AudioPlayer to resource File.
     
             joinVoiceChannel({ //Join the channel.
@@ -64,9 +62,8 @@ export function StreamStart({
             }
 
         } else if (type === "File") { //If the type is "File".
-            if (Resource.startsWith(".") == true) { //Check if the resource file exist.
+            if (Resource.startsWith("join(") == true) { //Check if the resource file exist.
 
-                Source = require(Resource); //Set Source variable to Audio File.
                 FileResource(); //Run FileResource function.
 
             } else { //If resource is not a file.
@@ -77,9 +74,8 @@ export function StreamStart({
 
         } else if (type === "Analyze") { //If the type is "Analyze".
 
-            if (Resource.startsWith(".") == true) { //Check if the resource file exist.
+            if (Resource.startsWith("join(") == true) { //Check if the resource file exist.
 
-                Source = require(Resource); //Set Source variable to Audio File.
                 FileResource(); //Run FileResource function.
 
             } else if (URLPattern.test(Resource) === true) { //Check if Link is a URL.
@@ -96,6 +92,7 @@ export function StreamStart({
             ERROR(); //Run ERROR function.
             console.log("CODE: Unknown resource type!") //"Error Code" usefull for help people.
             console.log(" ") //Placeholder xD
+            return "Unknown";
         }
 
     } catch (error) { //If syntax is wrong.

@@ -17,13 +17,13 @@ Pease create a bug post on github or write [`fraujulian`](https://discord.com/us
 ## 📝 Usage
 
 ### Install package
-```
+```bash
 npm i discord-audio-stream
 ```
 
 or
 
-```
+```bash
 yarn add discord-audio-stream
 ```
 

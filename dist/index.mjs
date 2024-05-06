@@ -26,8 +26,7 @@ function ERROR() {
 }
 
 // src/functions/start.ts
-import { join } from "node:path";
-var Source = "";
+import { join } from "path";
 var { joinVoiceChannel, createAudioPlayer, createAudioResource } = __require("@discordjs/voice");
 function StreamStart({
   imvci,
@@ -38,7 +37,7 @@ function StreamStart({
 }) {
   try {
     let FileResource2 = function() {
-      let Audio = createAudioResource(join(__dirname, Source));
+      let Audio = createAudioResource(join(__dirname, Resource), { inlineVolume: true });
       AudioPlayer.play(Audio);
       joinVoiceChannel({
         //Join the channel.
@@ -62,67 +61,39 @@ function StreamStart({
     if (type === "Link") {
       if (URLPattern.test(Resource) === true) {
         LinkResource2();
-        const result = new Promise((resolve2, reject) => {
-          resolve2("Play");
-        });
       } else {
         ERROR();
         console.log("CODE: Resource isn't a Link!");
         console.log(" ");
-        const result = new Promise((resolve2, reject) => {
-          resolve2("Unknown");
-        });
       }
     } else if (type === "File") {
-      if (Resource.startsWith(".") == true) {
-        Source = __require(Resource);
+      if (Resource.startsWith("join(") == true) {
         FileResource2();
-        const result = new Promise((resolve2, reject) => {
-          resolve2("Play");
-        });
       } else {
         ERROR();
         console.log("CODE: Resource isn't a File!");
         console.log(" ");
-        const result = new Promise((resolve2, reject) => {
-          resolve2("Unknown");
-        });
       }
     } else if (type === "Analyze") {
-      if (Resource.startsWith(".") == true) {
-        Source = __require(Resource);
+      if (Resource.startsWith("join(") == true) {
         FileResource2();
-        const result = new Promise((resolve2, reject) => {
-          resolve2("Play");
-        });
       } else if (URLPattern.test(Resource) === true) {
         LinkResource2();
-        const result = new Promise((resolve2, reject) => {
-          resolve2("Play");
-        });
       } else {
         ERROR();
         console.log("CODE: Resource isn't a Link or a File!");
         console.log(" ");
-        const result = new Promise((resolve2, reject) => {
-          resolve2("Unknown");
-        });
       }
     } else {
       ERROR();
       console.log("CODE: Unknown resource type!");
       console.log(" ");
-      const result = new Promise((resolve2, reject) => {
-        resolve2("Unknown");
-      });
+      return "Unknown";
     }
   } catch (error) {
     ERROR();
     console.log(">> ERR:\n" + error);
     console.log(" ");
-    const result = new Promise((resolve2, reject) => {
-      resolve2("ERROR");
-    });
   }
 }
 
