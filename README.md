@@ -29,26 +29,36 @@ yarn add discord-audio-stream
 
 ### Code Snippet - Start
 ```js
-const Audio = require("discord-audio-stream");
+const AudioStream = require("discord-audio-stream");
 
-Audio.StreamStart({
-    imvci: 0, //Voice Channel ID e.g. interaction.member.voice.channel.id
-    igi: 0, //Guild ID e.g. interaction.guild.id
-    igv: 0, //Bot Voice Adapter e.g. interaction.guild.voiceAdapterCreator
-    type: "", //Choose the Stream resource - File or Link or Analyze
-    Resource: "", //Link to File e.g. ../assets/Stream.mp3 or Link to Audio Stream
+AudioStream.start({
+    VoiceChannelID: 0, //Integer | Voice Channel ID | e.g interaction.member.voice.channel.id
+    GuildID: 0, //Integer | Guild ID | e.g interaction.guild.id
+    VoiceAdapter: 0, //Integer | Voice Adapter Creator | e.g interaction.guild.voiceAdapterCreator
+    Type: "", //String | choose the Audio Resource [File or Link or Analyze] | Analyze
+    Resource: "", //String | Audio Stream Link or File Location | e.g https://synradiode.stream.laut.fm/synradiode
 })
 ```
 
 ### Code Snippet - Stop
 ```js
-const Audio = require("discord-audio-stream");
+const AudioStream = require("discord-audio-stream");
 
-Audio.StreamStart({
-    igi: 0, //Guild ID e.g. interaction.guild.id
+AudioStream.stop({
+    GuildID: 0, //Integer | Guild ID | e.g interaction.guild.id
+})
+```
+
+### Code Snippet - Set Max Listeners
+```js
+const AudioStream = require("discord-audio-stream");
+
+AudioStream.setMaxListeners({
+    GuildID: 0, //Integer | Guild ID | e.g interaction.guild.id
+    MaxListeners: 0, //Integer | max Listeners | e.g 30
 })
 ```
 
 ## 🤝 Enjoy the package?
 
-Give it a star ⭐ on [github](https://github.com/FrauJulian/discord-audio-stream) or [donate](https://buymeacoffee.com/fraujuliannn) a hot chocolate!
+Give it a star ⭐ on [github](https://github.com/FrauJulian/discord-audio-stream) or [buy](https://buymeacoffee.com/fraujuliannn) a hot chocolate!

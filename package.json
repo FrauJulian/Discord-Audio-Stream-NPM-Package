@@ -1,6 +1,6 @@
 {
     "name": "discord-audio-stream",
-    "version": "0.2.0",
+    "version": "0.3.2",
     "description": "🖼️ NPM Package to stream any audio link on discord.",
     "main": "./dist/index.js",
     "module": "./dist/index.mjs",

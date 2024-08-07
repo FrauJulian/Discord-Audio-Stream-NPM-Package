@@ -20,6 +20,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
+  setMaxListeners: () => setMaxListeners,
   start: () => start,
   stop: () => stop
 });
@@ -44,10 +45,10 @@ function ERR(err) {
 var import_node_path = require("path");
 var { joinVoiceChannel, createAudioPlayer, createAudioResource } = require("@discordjs/voice");
 function start({
-  imvci,
-  igi,
-  igv,
-  type,
+  VoiceChannelID,
+  GuildID,
+  VoiceAdapter,
+  Type,
   Resource
 }) {
   try {
@@ -55,17 +56,17 @@ function start({
       let Audio = createAudioResource((0, import_node_path.join)(__dirname, FILE), { inlineVolume: true });
       AudioPlayer.play(Audio);
       joinVoiceChannel({
-        channelId: imvci,
-        guildId: igi,
-        adapterCreator: igv
+        channelId: VoiceChannelID,
+        guildId: GuildID,
+        adapterCreator: VoiceAdapter
       }).subscribe(AudioPlayer);
     }, streamLink2 = function(URL) {
       let Audio = createAudioResource(URL);
       AudioPlayer.play(Audio);
       joinVoiceChannel({
-        channelId: imvci,
-        guildId: igi,
-        adapterCreator: igv
+        channelId: VoiceChannelID,
+        guildId: GuildID,
+        adapterCreator: VoiceAdapter
       }).subscribe(AudioPlayer);
     }, LinkValidation2 = function(URL) {
       var URLPattern = new RegExp("^(https?:\\/\\/)?((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.?)+[a-z]{2,}|((\\d{1,3}\\.){3}\\d{1,3}))(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*(\\?[;&a-z\\d%_.~+=-]*)?(\\#[-a-z\\d_]*)?$", "i");
@@ -76,25 +77,17 @@ function start({
     };
     var streamFile = streamFile2, streamLink = streamLink2, LinkValidation = LinkValidation2, FileValidation = FileValidation2;
     const AudioPlayer = createAudioPlayer();
-    switch (type) {
+    switch (Type) {
       case "Link":
-        if (LinkValidation2(Resource) === true && FileValidation2(Resource) === false) {
-          streamLink2(Resource);
-        } else {
-          ERR();
-        }
+        streamLink2(Resource);
         break;
       case "File":
-        if (LinkValidation2(Resource) === false && FileValidation2(Resource) === true) {
-          streamFile2(Resource);
-        } else {
-          ERR();
-        }
+        streamFile2(Resource);
         break;
       case "Analyze":
-        if (LinkValidation2(Resource) === true && FileValidation2(Resource) === false) {
+        if (LinkValidation2(Resource)) {
           streamLink2(Resource);
-        } else if (LinkValidation2(Resource) === false && FileValidation2(Resource) === true) {
+        } else if (FileValidation2(Resource)) {
           streamFile2(Resource);
         } else {
           ERR();
@@ -112,17 +105,32 @@ function start({
 // src/functions/stopFunc.ts
 var { getVoiceConnection } = require("@discordjs/voice");
 function stop({
-  igi
+  GuildID
 }) {
   try {
-    const connection = getVoiceConnection(igi);
+    const connection = getVoiceConnection(GuildID);
     connection.destroy();
   } catch (err) {
-    ERR();
+    ERR(err);
+  }
+}
+
+// src/functions/maxListenersFunc.ts
+var { getVoiceConnection: getVoiceConnection2 } = require("@discordjs/voice");
+function setMaxListeners({
+  GuildID,
+  MaxListeners
+}) {
+  try {
+    const connection = getVoiceConnection2(GuildID);
+    connection.setMaxListeners(MaxListeners);
+  } catch (err) {
+    ERR(err);
   }
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  setMaxListeners,
   start,
   stop
 });

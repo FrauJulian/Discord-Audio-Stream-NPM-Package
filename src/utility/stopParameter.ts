@@ -1,3 +1,3 @@
 export type stopParameter = {
-    igi: number;
+    GuildID: number;
 };

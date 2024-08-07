@@ -1,13 +1,13 @@
-const { joinVoiceChannel,  createAudioPlayer,  createAudioResource } = require("@discordjs/voice");
+const { joinVoiceChannel, createAudioPlayer, createAudioResource } = require("@discordjs/voice");
 import { ERR, startParameters } from "../managers/UtilityManager";
 
 import { join } from "node:path";
 
 export function start({
-    imvci,
-    igi,
-    igv,
-    type,
+    VoiceChannelID,
+    GuildID,
+    VoiceAdapter,
+    Type,
     Resource,
 }: startParameters) {
     try {
@@ -16,32 +16,32 @@ export function start({
         function streamFile(FILE: string) {
             let Audio = createAudioResource(join(__dirname, FILE), { inlineVolume: true });
             AudioPlayer.play(Audio);
-    
+
             joinVoiceChannel({
-              channelId: imvci,
-              guildId: igi,
-              adapterCreator: igv
+                channelId: VoiceChannelID,
+                guildId: GuildID,
+                adapterCreator: VoiceAdapter
             }).subscribe(AudioPlayer);
         }
 
         function streamLink(URL: string) {
             let Audio = createAudioResource(URL);
-            AudioPlayer.play(Audio); 
+            AudioPlayer.play(Audio);
 
-            joinVoiceChannel({ 
-                channelId: imvci,
-                guildId: igi,
-                adapterCreator: igv
+            joinVoiceChannel({
+                channelId: VoiceChannelID,
+                guildId: GuildID,
+                adapterCreator: VoiceAdapter
             }).subscribe(AudioPlayer)
         }
 
         function LinkValidation(URL: string) {
-            var URLPattern = new RegExp('^(https?:\\/\\/)?'+
-                '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.?)+[a-z]{2,}|'+
-                '((\\d{1,3}\\.){3}\\d{1,3}))'+
-                '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*'+
-                '(\\?[;&a-z\\d%_.~+=-]*)?'+
-                '(\\#[-a-z\\d_]*)?$','i');
+            var URLPattern = new RegExp('^(https?:\\/\\/)?' +
+                '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.?)+[a-z]{2,}|' +
+                '((\\d{1,3}\\.){3}\\d{1,3}))' +
+                '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*' +
+                '(\\?[;&a-z\\d%_.~+=-]*)?' +
+                '(\\#[-a-z\\d_]*)?$', 'i');
 
             return URLPattern.test(URL);
         }
@@ -52,31 +52,23 @@ export function start({
             return FILEPattern.test(FILE);
         }
 
-        switch (type) {
+        switch (Type) {
             case "Link":
-                if(LinkValidation(Resource) === true && FileValidation(Resource) === false) {
-                    streamLink(Resource);
-                } else {
-                    ERR();
-                }
-                break; 
+                streamLink(Resource);
+                break;
             case "File":
-                if(LinkValidation(Resource) === false && FileValidation(Resource) === true) {
-                    streamFile(Resource);
-                } else {
-                    ERR();
-                }
+                streamFile(Resource);
                 break;
             case "Analyze":
-                if(LinkValidation(Resource) === true && FileValidation(Resource) === false) {
+                if (LinkValidation(Resource)) {
                     streamLink(Resource);
-                } else if(LinkValidation(Resource) === false && FileValidation(Resource) === true) {
+                } else if (FileValidation(Resource)) {
                     streamFile(Resource)
                 } else {
                     ERR();
                 }
                 break;
-            default: 
+            default:
                 ERR();
                 break;
         }

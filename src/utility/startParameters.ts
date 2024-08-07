@@ -1,7 +1,7 @@
 export type startParameters = {
-    imvci: number;
-    igi: number;
-    igv: number;
-    type: string;
+    VoiceChannelID: number;
+    GuildID: number;
+    VoiceAdapter: number;
+    Type: string;
     Resource: string;
 };

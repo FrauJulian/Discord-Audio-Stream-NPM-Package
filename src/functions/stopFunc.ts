@@ -2,13 +2,12 @@ const { getVoiceConnection } = require("@discordjs/voice");
 import { ERR, stopParameter } from "../managers/UtilityManager";
 
 export function stop({
-    igi,
+    GuildID,
 }: stopParameter) {
     try {
-        const connection = getVoiceConnection(igi);
-
+        const connection = getVoiceConnection(GuildID);
         connection.destroy();
     } catch (err) {
-        ERR();
+        ERR(err);
     }
 };
