@@ -1,0 +1,133 @@
+name: Migrate contributions to Gitea
+
+on:
+    issues:
+        types: [opened, reopened]
+    pull_request_target:
+        types: [opened, reopened]
+
+permissions:
+    contents: read
+    issues: write
+    pull-requests: write
+
+concurrency:
+    group: migrate-${{ github.event_name }}-${{ github.event.issue.number || github.event.pull_request.number }}
+
+env:
+    GITEA_API_URL: https://git.lechner-systems.at/api/v1
+    GITEA_REPOSITORY: FrauJulian/Discord-Audio-Stream
+    GITEA_REPOSITORY_URL: https://git.lechner-systems.at/FrauJulian/Discord-Audio-Stream.git
+
+jobs:
+    migrate:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Migrate and close
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+              run: |
+                  set -euo pipefail
+
+                  if [ "$GITHUB_EVENT_NAME" = "issues" ]; then
+                      kind=issue
+                      number="$(jq -r '.issue.number' "$GITHUB_EVENT_PATH")"
+                      title="$(jq -r '.issue.title' "$GITHUB_EVENT_PATH")"
+                      body="$(jq -r '.issue.body // ""' "$GITHUB_EVENT_PATH")"
+                      author="$(jq -r '.issue.user.login' "$GITHUB_EVENT_PATH")"
+                      source_url="$(jq -r '.issue.html_url' "$GITHUB_EVENT_PATH")"
+                  else
+                      kind=pull
+                      number="$(jq -r '.pull_request.number' "$GITHUB_EVENT_PATH")"
+                      title="$(jq -r '.pull_request.title' "$GITHUB_EVENT_PATH")"
+                      body="$(jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH")"
+                      author="$(jq -r '.pull_request.user.login' "$GITHUB_EVENT_PATH")"
+                      source_url="$(jq -r '.pull_request.html_url' "$GITHUB_EVENT_PATH")"
+                  fi
+
+                  github_api="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}"
+                  migrated_url="$(
+                      curl --fail --silent --show-error \
+                          --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+                          --header "Accept: application/vnd.github+json" \
+                          "${github_api}/issues/${number}/comments?per_page=100" |
+                          jq -r '[.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("Migrated to Gitea: ")))] | first | .body // "" | sub("^Migrated to Gitea: "; "")'
+                  )"
+
+                  if [ -z "$migrated_url" ]; then
+                      migrated_body="${body}
+
+                  ---
+                  Originally opened by @${author} on GitHub: ${source_url}"
+
+                      if [ "$kind" = issue ]; then
+                          jq -n \
+                              --arg title "$title" \
+                              --arg body "$migrated_body" \
+                              '{title: $title, body: $body}' > gitea-request.json
+
+                          curl --fail-with-body \
+                              --request POST \
+                              --header "Authorization: token ${GITEA_TOKEN}" \
+                              --header "Content-Type: application/json" \
+                              --data @gitea-request.json \
+                              "${GITEA_API_URL}/repos/${GITEA_REPOSITORY}/issues" > gitea-response.json
+                      else
+                          branch="github-pr-${number}"
+                          github_auth="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\r\n')"
+                          gitea_user="${GITEA_REPOSITORY%%/*}"
+                          gitea_auth="$(printf '%s:%s' "$gitea_user" "$GITEA_TOKEN" | base64 | tr -d '\r\n')"
+
+                          git init --quiet migrated-pr
+                          cd migrated-pr
+                          git -c "http.extraHeader=Authorization: Basic ${github_auth}" fetch \
+                              --quiet --depth=1 \
+                              "https://github.com/${GITHUB_REPOSITORY}.git" \
+                              "refs/pull/${number}/head"
+                          git -c "http.extraHeader=Authorization: Basic ${gitea_auth}" push \
+                              --quiet --force \
+                              "$GITEA_REPOSITORY_URL" \
+                              "FETCH_HEAD:refs/heads/${branch}"
+                          cd ..
+
+                          base="$(jq -r '.pull_request.base.ref' "$GITHUB_EVENT_PATH")"
+                          jq -n \
+                              --arg head "$branch" \
+                              --arg base "$base" \
+                              --arg title "$title" \
+                              --arg body "$migrated_body" \
+                              '{head: $head, base: $base, title: $title, body: $body}' > gitea-request.json
+
+                          curl --fail-with-body \
+                              --request POST \
+                              --header "Authorization: token ${GITEA_TOKEN}" \
+                              --header "Content-Type: application/json" \
+                              --data @gitea-request.json \
+                              "${GITEA_API_URL}/repos/${GITEA_REPOSITORY}/pulls" > gitea-response.json
+                      fi
+
+                      migrated_url="$(jq -r '.html_url' gitea-response.json)"
+                      jq -n --arg body "Migrated to Gitea: ${migrated_url}" '{body: $body}' > github-comment.json
+                      curl --fail-with-body \
+                          --request POST \
+                          --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+                          --header "Content-Type: application/json" \
+                          --data @github-comment.json \
+                          "${github_api}/issues/${number}/comments"
+                  fi
+
+                  if [ "$kind" = issue ]; then
+                      printf '%s' '{"state":"closed","state_reason":"not_planned"}' > github-close.json
+                      close_url="${github_api}/issues/${number}"
+                  else
+                      printf '%s' '{"state":"closed"}' > github-close.json
+                      close_url="${github_api}/pulls/${number}"
+                  fi
+
+                  curl --fail-with-body \
+                      --request PATCH \
+                      --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+                      --header "Content-Type: application/json" \
+                      --data @github-close.json \
+                      "$close_url"
