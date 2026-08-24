@@ -9,5 +9,5 @@
     "bracketSpacing": true,
     "bracketSameLine": false,
     "quoteProps": "as-needed",
-    "endOfLine": "lf"
+    "endOfLine": "auto"
 }
