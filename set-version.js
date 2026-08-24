@@ -3,6 +3,8 @@ const fs = require('fs');
 const lockFilePath = 'package-lock.json';
 const packageFilePath = 'package.json';
 const placeholderVersion = 'x.x.x';
+const versionMajor = 1;
+const versionMinor = 2;
 const command = process.argv[2];
 
 function readJson(path) {
@@ -74,19 +76,14 @@ function fixPlaceholder() {
 }
 
 function getCiVersion() {
-    const major = process.env.VERSION_MAJOR;
-    const minor = process.env.VERSION_MINOR;
     const patch = process.env.VERSION_PATCH;
-    const segments = { major, minor, patch };
 
-    for (const [name, value] of Object.entries(segments)) {
-        if (!/^\d+$/.test(value ?? '')) {
-            console.error(`Missing or invalid ${name} version segment: "${value ?? ''}"`);
-            process.exit(1);
-        }
+    if (!/^\d+$/.test(patch ?? '')) {
+        console.error(`Missing or invalid patch version segment: "${patch ?? ''}"`);
+        process.exit(1);
     }
 
-    return `${major}.${minor}.${patch}`;
+    return `${versionMajor}.${versionMinor}.${patch}`;
 }
 
 if (command === 'check-placeholder') {
