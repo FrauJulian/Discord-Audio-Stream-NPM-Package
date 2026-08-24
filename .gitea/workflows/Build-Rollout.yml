@@ -22,10 +22,10 @@ jobs:
                   fetch-depth: 0
                   fetch-tags: true
 
-            - name: Use NodeJS 24
+            - name: Use Node.js 24.17.0
               uses: actions/setup-node@v6
               with:
-                  node-version: '24'
+                  node-version: '24.17.0'
                   registry-url: 'https://registry.npmjs.org'
                   package-manager-cache: false
 

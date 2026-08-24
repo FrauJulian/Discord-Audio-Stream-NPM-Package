@@ -15,10 +15,10 @@ jobs:
             - name: Checkout Repository
               uses: actions/checkout@v4
 
-            - name: use NodeJS 24
+            - name: Use Node.js 24.17.0
               uses: actions/setup-node@v4
               with:
-                  node-version: '24'
+                  node-version: '24.17.0'
 
             - name: Install Dependencies
               run: npm ci
