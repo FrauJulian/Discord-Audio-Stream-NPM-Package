@@ -1,7 +1,9 @@
 /** @type {import('eslint').Linter.FlatConfig[]} */
+const prettierConfig = require('eslint-config-prettier/flat');
+
 const config = [
     {
-        ignores: ['dist/', 'node_modules/'],
+        ignores: ['coverage/', 'dist/', 'node_modules/'],
     },
 
     {
@@ -78,6 +80,23 @@ const config = [
     },
 
     {
+        files: ['**/*.{ts,tsx}'],
+        languageOptions: {
+            parserOptions: {
+                project: ['./tsconfig.eslint.json'],
+                tsconfigRootDir: __dirname,
+            },
+        },
+        rules: {
+            '@typescript-eslint/no-floating-promises': 'error',
+            '@typescript-eslint/no-misused-promises': ['error', { checksVoidReturn: false }],
+            '@typescript-eslint/no-unsafe-assignment': 'error',
+            '@typescript-eslint/no-unsafe-member-access': 'error',
+            '@typescript-eslint/no-unsafe-argument': 'error',
+        },
+    },
+
+    {
         files: ['**/*.{js,cjs}'],
         languageOptions: {
             sourceType: 'script',
@@ -88,4 +107,4 @@ const config = [
     },
 ];
 
-module.exports = config;
+module.exports = [...config, prettierConfig];
