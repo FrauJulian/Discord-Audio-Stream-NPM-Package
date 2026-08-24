@@ -27,11 +27,6 @@ jobs:
             - name: Install Dependencies
               run: npm ci
 
-            - name: Verify npm Authentication
-              run: npm whoami
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
             - name: Set Release Version
               run: npm run version:place
               env:
