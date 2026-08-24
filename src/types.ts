@@ -112,7 +112,7 @@ export type VolumeOptions = {
     /**
      * Initial volume percentage applied when playback starts.
      *
-     * Requires `enabled: true`.
+     * Must be a finite number from `0` through `100` and requires `enabled: true`.
      */
     initialPercent?: number;
 };
@@ -144,6 +144,7 @@ export type AudioManagerOptions = {
      * Milliseconds after which the manager reconnects and restarts playback.
      *
      * Renewal is disabled unless an interval is provided.
+     * Numeric values must be integers from `1` through `2_147_483_647`.
      *
      * @defaultValue `false`
      */
@@ -151,6 +152,7 @@ export type AudioManagerOptions = {
 
     /**
      * Maximum milliseconds to wait for the Discord voice connection to become ready.
+     * Must be an integer from `1` through `2_147_483_647`.
      *
      * @defaultValue `20_000`
      */

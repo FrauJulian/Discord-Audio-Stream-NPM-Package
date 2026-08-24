@@ -123,6 +123,9 @@ type AudioManagerOptions = {
 };
 ```
 
+`connectTimeoutMs` and numeric `renewIntervalMs` values must be whole milliseconds from `1` through `2_147_483_647`.
+`volume.initialPercent` must be a finite number from `0` through `100` and requires `volume.enabled: true`.
+
 ### Defaults
 
 | Option             | Default    |
