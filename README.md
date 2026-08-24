@@ -203,6 +203,8 @@ operations, such as calling `pause()` while nothing is playing, throw `AudioMana
 Use `onError` to observe asynchronous audio player and voice connection errors. The manager cleans up failed playback
 and unrecoverable connections before invoking the callback.
 
+`onError` does not handle rejected `connect()`, `play()`, or `start()` calls. Await and catch those calls explicitly.
+
 ## Development
 
 ```bash
