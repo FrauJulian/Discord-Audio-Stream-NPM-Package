@@ -139,8 +139,8 @@ type AudioManagerOptions = {
 
 | Method                   | Description                                                                        |
 | ------------------------ | ---------------------------------------------------------------------------------- |
-| `setConnection(options)` | Replaces the voice connection target.                                              |
-| `setSource(source)`      | Replaces the audio source.                                                         |
+| `setConnection(options)` | Sets the target for the next `connect()` or `start()` call.                        |
+| `setSource(source)`      | Sets the source for the next `play()` or `start()` call.                           |
 | `connect()`              | Joins the configured Discord voice channel.                                        |
 | `play(source?)`          | Starts playback on an existing connection.                                         |
 | `start()`                | Connects and starts playback.                                                      |
