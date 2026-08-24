@@ -2,7 +2,7 @@
     "$schema": "https://json.schemastore.org/package.json",
     "name": "discord-audio-stream",
     "version": "x.x.x",
-    "license": "LGPL-3.0-only",
+    "license": "AGPL-3.0-only",
     "description": "A small Discord voice audio streaming library with managed ffmpeg playback.",
     "exports": {
         ".": {
