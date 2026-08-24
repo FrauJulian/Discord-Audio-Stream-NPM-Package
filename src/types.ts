@@ -143,9 +143,9 @@ export type AudioManagerOptions = {
     /**
      * Milliseconds after which the manager reconnects and restarts playback.
      *
-     * Set to `false` to disable renewal.
+     * Renewal is disabled unless an interval is provided.
      *
-     * @defaultValue `5_400_000`
+     * @defaultValue `false`
      */
     renewIntervalMs?: number | false;
 
@@ -155,6 +155,11 @@ export type AudioManagerOptions = {
      * @defaultValue `20_000`
      */
     connectTimeoutMs?: number;
+
+    /**
+     * Receives asynchronous audio player and voice connection errors.
+     */
+    onError?: (error: Error) => void;
 
     /**
      * Optional inline volume configuration.

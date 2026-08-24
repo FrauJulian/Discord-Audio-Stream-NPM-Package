@@ -1,5 +1,12 @@
 import { jest, describe, beforeEach, afterEach, it, expect } from '@jest/globals';
-import { createAudioResource, entersState, joinVoiceChannel } from '@discordjs/voice';
+import {
+    AudioPlayerStatus,
+    createAudioPlayer,
+    createAudioResource,
+    entersState,
+    joinVoiceChannel,
+    VoiceConnectionStatus,
+} from '@discordjs/voice';
 import { resolve } from 'node:path';
 import { PassThrough } from 'node:stream';
 
@@ -10,18 +17,37 @@ import type { FfmpegProcessHandle } from '../src/ffmpeg';
 import type { AudioSource, VoiceConnectionOptions } from '../src';
 import type { VoiceConnection } from '@discordjs/voice';
 
+type MockListener = (...args: unknown[]) => unknown;
+
+const audioPlayerListeners = new Map<string, MockListener>();
+const connectionListeners = new Map<string, MockListener>();
+const secondConnectionListeners = new Map<string, MockListener>();
 const mockAudioPlayer = {
+    on: jest.fn((event: string, listener: MockListener) => {
+        audioPlayerListeners.set(event, listener);
+        return mockAudioPlayer;
+    }),
     play: jest.fn(),
     pause: jest.fn(),
     unpause: jest.fn(),
     stop: jest.fn(),
 };
 const mockConnection = {
+    state: { status: 'ready' },
+    on: jest.fn((event: string, listener: MockListener) => {
+        connectionListeners.set(event, listener);
+        return mockConnection;
+    }),
     subscribe: jest.fn(),
     disconnect: jest.fn(),
     destroy: jest.fn(),
 };
 const mockSecondConnection = {
+    state: { status: 'ready' },
+    on: jest.fn((event: string, listener: MockListener) => {
+        secondConnectionListeners.set(event, listener);
+        return mockSecondConnection;
+    }),
     subscribe: jest.fn(),
     disconnect: jest.fn(),
     destroy: jest.fn(),
@@ -45,6 +71,9 @@ const mockFfmpegHandle: FfmpegProcessHandle = {
 };
 
 jest.mock('@discordjs/voice', () => ({
+    AudioPlayerStatus: {
+        Idle: 'idle',
+    },
     NoSubscriberBehavior: {
         Play: 'play',
     },
@@ -52,7 +81,11 @@ jest.mock('@discordjs/voice', () => ({
         Raw: 'raw',
     },
     VoiceConnectionStatus: {
+        Connecting: 'connecting',
+        Destroyed: 'destroyed',
+        Disconnected: 'disconnected',
         Ready: 'ready',
+        Signalling: 'signalling',
     },
     createAudioPlayer: jest.fn(() => mockAudioPlayer),
     createAudioResource: jest.fn(() => mockAudioResource),
@@ -79,15 +112,6 @@ const fileSourcePath = 'tests/audio.mp3';
 const resolvedFileSourcePath = resolve(process.cwd(), fileSourcePath);
 type MockedEntersStateReturn = ReturnType<typeof entersState>;
 
-function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
-    let resolve!: (value: T) => void;
-    const promise = new Promise<T>((promiseResolve) => {
-        resolve = promiseResolve;
-    });
-
-    return { promise, resolve };
-}
-
 function createMockFfmpegHandle(): FfmpegProcessHandle {
     return {
         process: {
@@ -98,9 +122,24 @@ function createMockFfmpegHandle(): FfmpegProcessHandle {
     };
 }
 
+function listenerFor(listeners: Map<string, MockListener>, event: string): MockListener {
+    const listener = listeners.get(event);
+
+    if (!listener) {
+        throw new Error(`No listener registered for ${event}.`);
+    }
+
+    return listener;
+}
+
 describe('AudioManager', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        audioPlayerListeners.clear();
+        connectionListeners.clear();
+        secondConnectionListeners.clear();
+        mockConnection.state.status = VoiceConnectionStatus.Ready;
+        mockSecondConnection.state.status = VoiceConnectionStatus.Ready;
     });
 
     afterEach(() => {
@@ -130,6 +169,72 @@ describe('AudioManager', () => {
         expect(mockAudioPlayer.play).toHaveBeenCalledWith(mockAudioResource);
     });
 
+    it('does not schedule connection renewal by default', async () => {
+        jest.useFakeTimers();
+        const manager = new AudioManager({ connection: connectionOptions });
+
+        await manager.connect();
+
+        expect(jest.getTimerCount()).toBe(0);
+        manager.dispose();
+    });
+
+    it('reports voice connection errors without interrupting playback', async () => {
+        const connectionError = new Error('voice connection failed');
+        const onError = jest.fn();
+        const manager = new AudioManager({
+            connection: connectionOptions,
+            source: liveStreamSource,
+            renewIntervalMs: false,
+            onError,
+        });
+        await manager.start();
+
+        listenerFor(connectionListeners, 'error')(connectionError);
+
+        expect(onError).toHaveBeenCalledWith(connectionError);
+        expect(manager.state).toBe('playing');
+    });
+
+    it('keeps playback while a disconnected voice connection recovers', async () => {
+        const manager = new AudioManager({
+            connection: connectionOptions,
+            source: liveStreamSource,
+            renewIntervalMs: false,
+        });
+        await manager.start();
+
+        await listenerFor(connectionListeners, VoiceConnectionStatus.Disconnected)();
+
+        expect(entersState).toHaveBeenCalledWith(mockVoiceConnection, VoiceConnectionStatus.Signalling, 5_000);
+        expect(entersState).toHaveBeenCalledWith(mockVoiceConnection, VoiceConnectionStatus.Connecting, 5_000);
+        expect(mockConnection.destroy).not.toHaveBeenCalled();
+        expect(manager.state).toBe('playing');
+    });
+
+    it('stops playback after an unrecoverable voice disconnect', async () => {
+        const disconnectError = new Error('voice connection did not recover');
+        const onError = jest.fn();
+        const manager = new AudioManager({
+            connection: connectionOptions,
+            source: liveStreamSource,
+            renewIntervalMs: false,
+            onError,
+        });
+        await manager.start();
+        jest.mocked(entersState).mockRejectedValueOnce(disconnectError).mockRejectedValueOnce(disconnectError);
+        mockConnection.state.status = VoiceConnectionStatus.Disconnected;
+
+        await listenerFor(connectionListeners, VoiceConnectionStatus.Disconnected)();
+
+        expect(mockFfmpegHandle.stop).toHaveBeenCalledTimes(1);
+        expect(mockAudioPlayer.stop).toHaveBeenCalledWith(true);
+        expect(mockConnection.destroy).toHaveBeenCalledTimes(1);
+        expect(onError).toHaveBeenCalledWith(disconnectError);
+        expect(manager.state).toBe('stopped');
+        expect(manager.isConnected).toBe(false);
+    });
+
     it('cleans up when connection startup fails', async () => {
         jest.useFakeTimers();
 
@@ -148,9 +253,22 @@ describe('AudioManager', () => {
         expect(jest.getTimerCount()).toBe(0);
     });
 
+    it('restores the stopped state when voice setup throws synchronously', async () => {
+        const connectionError = new Error('voice setup failed');
+        jest.mocked(joinVoiceChannel).mockImplementationOnce(() => {
+            throw connectionError;
+        });
+        const manager = new AudioManager({ connection: connectionOptions, renewIntervalMs: false });
+
+        await expect(manager.connect()).rejects.toBe(connectionError);
+
+        expect(manager.state).toBe('stopped');
+        expect(manager.isConnected).toBe(false);
+    });
+
     it('does not become ready when stopped during connection startup', async () => {
         jest.useFakeTimers();
-        const ready = deferred<VoiceConnection>();
+        const ready = Promise.withResolvers<VoiceConnection>();
         jest.mocked(entersState).mockReturnValueOnce(ready.promise as unknown as MockedEntersStateReturn);
         const manager = new AudioManager({
             connection: connectionOptions,
@@ -168,9 +286,9 @@ describe('AudioManager', () => {
         expect(jest.getTimerCount()).toBe(0);
     });
 
-    it('keeps the latest connection when concurrent connects resolve out of order', async () => {
-        const firstReady = deferred<VoiceConnection>();
-        const secondReady = deferred<VoiceConnection>();
+    it('keeps the latest connection when a stale connection attempt rejects', async () => {
+        const firstReady = Promise.withResolvers<VoiceConnection>();
+        const secondReady = Promise.withResolvers<VoiceConnection>();
         jest.mocked(joinVoiceChannel)
             .mockReturnValueOnce(mockVoiceConnection)
             .mockReturnValueOnce(mockSecondVoiceConnection);
@@ -184,7 +302,7 @@ describe('AudioManager', () => {
 
         const firstConnect = manager.connect();
         const secondConnect = manager.connect();
-        firstReady.resolve(mockVoiceConnection);
+        firstReady.reject(new Error('stale connection failed'));
         secondReady.resolve(mockSecondVoiceConnection);
 
         await expect(firstConnect).rejects.toThrow(AudioManagerStateError);
@@ -197,7 +315,7 @@ describe('AudioManager', () => {
     });
 
     it('does not become ready when disposed during connection startup', async () => {
-        const ready = deferred<VoiceConnection>();
+        const ready = Promise.withResolvers<VoiceConnection>();
         jest.mocked(entersState).mockReturnValueOnce(ready.promise as unknown as MockedEntersStateReturn);
         const manager = new AudioManager({
             connection: connectionOptions,
@@ -206,7 +324,7 @@ describe('AudioManager', () => {
 
         const connectPromise = manager.connect();
         manager.dispose();
-        ready.resolve(mockVoiceConnection);
+        ready.reject(new Error('disposed connection failed'));
 
         await expect(connectPromise).rejects.toThrow(AudioManagerStateError);
 
@@ -318,8 +436,44 @@ describe('AudioManager', () => {
         expect(mockAudioResource.playStream.destroy).toHaveBeenCalledTimes(1);
     });
 
+    it('cleans up and reports asynchronous audio player errors', async () => {
+        const playerError = Object.assign(new Error('audio stream failed'), { resource: mockAudioResource });
+        const onError = jest.fn();
+        const manager = new AudioManager({
+            connection: connectionOptions,
+            source: liveStreamSource,
+            renewIntervalMs: false,
+            onError,
+        });
+        await manager.start();
+
+        listenerFor(audioPlayerListeners, 'error')(playerError);
+
+        expect(mockFfmpegHandle.stop).toHaveBeenCalledTimes(1);
+        expect(mockAudioResource.playStream.destroy).toHaveBeenCalledTimes(1);
+        expect(onError).toHaveBeenCalledWith(playerError);
+        expect(manager.state).toBe('ready');
+        expect(manager.isPlaying).toBe(false);
+    });
+
+    it('returns to ready when the current audio resource becomes idle', async () => {
+        const manager = new AudioManager({
+            connection: connectionOptions,
+            source: liveStreamSource,
+            renewIntervalMs: false,
+        });
+        await manager.start();
+
+        listenerFor(audioPlayerListeners, AudioPlayerStatus.Idle)({ resource: mockAudioResource });
+
+        expect(mockFfmpegHandle.stop).toHaveBeenCalledTimes(1);
+        expect(mockAudioResource.playStream.destroy).toHaveBeenCalledTimes(1);
+        expect(manager.state).toBe('ready');
+        expect(manager.isPlaying).toBe(false);
+    });
+
     it('does not report playback when stopped before ffmpeg is ready', async () => {
-        const ready = deferred<void>();
+        const ready = Promise.withResolvers<void>();
         jest.mocked(startFfmpeg).mockReturnValueOnce({
             ...mockFfmpegHandle,
             ready: ready.promise,
@@ -342,7 +496,7 @@ describe('AudioManager', () => {
     });
 
     it('does not report playback when disposed before ffmpeg is ready', async () => {
-        const ready = deferred<void>();
+        const ready = Promise.withResolvers<void>();
         jest.mocked(startFfmpeg).mockReturnValueOnce({
             ...mockFfmpegHandle,
             ready: ready.promise,
@@ -365,7 +519,7 @@ describe('AudioManager', () => {
     });
 
     it('keeps only the latest concurrent playback', async () => {
-        const firstReady = deferred<void>();
+        const firstReady = Promise.withResolvers<void>();
         const firstHandle = {
             ...createMockFfmpegHandle(),
             ready: firstReady.promise,
@@ -459,6 +613,36 @@ describe('AudioManager', () => {
         await manager.start();
 
         expect(mockAudioResource.volume.setVolume).toHaveBeenCalledWith(0.35);
+    });
+
+    it('rejects invalid initial volume before allocating audio resources', () => {
+        expect(
+            () =>
+                new AudioManager({
+                    volume: {
+                        enabled: true,
+                        initialPercent: 101,
+                    },
+                }),
+        ).toThrow(AudioManagerConfigError);
+        expect(
+            () =>
+                new AudioManager({
+                    volume: {
+                        enabled: false,
+                        initialPercent: 50,
+                    },
+                }),
+        ).toThrow(AudioManagerConfigError);
+
+        expect(createAudioPlayer).not.toHaveBeenCalled();
+        expect(createAudioResource).not.toHaveBeenCalled();
+        expect(startFfmpeg).not.toHaveBeenCalled();
+    });
+
+    it('rejects timer delays that Node.js cannot schedule safely', () => {
+        expect(() => new AudioManager({ connectTimeoutMs: 0 })).toThrow(AudioManagerConfigError);
+        expect(() => new AudioManager({ renewIntervalMs: 2_147_483_648 })).toThrow(AudioManagerConfigError);
     });
 
     it('rejects volume changes when inline volume is disabled', () => {
@@ -615,6 +799,15 @@ describe('AudioManager', () => {
 
         expect(() => manager.setSource(liveStreamSource)).toThrow(AudioManagerStateError);
         expect(() => manager.setConnection(connectionOptions)).toThrow(AudioManagerStateError);
+    });
+
+    it('supports explicit resource management', () => {
+        const manager = (() => {
+            using disposableManager = new AudioManager({ renewIntervalMs: false });
+            return disposableManager;
+        })();
+
+        expect(manager.state).toBe('disposed');
     });
 
     it('prevents use after disposal', async () => {

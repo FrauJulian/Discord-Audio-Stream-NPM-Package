@@ -4,6 +4,7 @@ import {
     createAudioResource,
     entersState,
     joinVoiceChannel,
+    AudioPlayerStatus,
     NoSubscriberBehavior,
     StreamType,
     VoiceConnectionStatus,
@@ -21,14 +22,30 @@ import type {
 } from './types';
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 20_000;
-const DEFAULT_RENEW_INTERVAL_MS = 5_400_000;
+const DISCONNECT_RECOVERY_TIMEOUT_MS = 5_000;
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
-export default class AudioManager {
+function assertValidTimerDelay(value: number, optionName: string): void {
+    if (!Number.isSafeInteger(value) || value <= 0 || value > MAX_TIMER_DELAY_MS) {
+        throw new AudioManagerConfigError(
+            `${optionName} must be an integer between 1 and ${MAX_TIMER_DELAY_MS} milliseconds.`,
+        );
+    }
+}
+
+function assertValidVolumePercent(value: number): void {
+    if (!Number.isFinite(value) || value < 0 || value > 100) {
+        throw new AudioManagerConfigError('Volume must be between 0 and 100 percent.');
+    }
+}
+
+export default class AudioManager implements Disposable {
     private readonly audioPlayer: AudioPlayer;
 
     private connection: VoiceConnection | undefined;
     private resource: AudioResource | undefined;
     private ffmpeg: FfmpegProcessHandle | undefined;
+    private connectAttempt: AbortController | undefined;
     private renewTimer: NodeJS.Timeout | undefined;
     private playbackState: PlaybackState = 'idle';
     private connectionOptions: VoiceConnectionOptions | undefined;
@@ -37,9 +54,23 @@ export default class AudioManager {
         Omit<AudioManagerOptions, 'connectTimeoutMs'>;
 
     public constructor(options: AudioManagerOptions = {}) {
+        const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
+        assertValidTimerDelay(connectTimeoutMs, 'connectTimeoutMs');
+
+        if (typeof options.renewIntervalMs === 'number') {
+            assertValidTimerDelay(options.renewIntervalMs, 'renewIntervalMs');
+        }
+
+        if (options.volume?.initialPercent !== undefined) {
+            if (options.volume.enabled !== true) {
+                throw new AudioManagerConfigError('volume.initialPercent requires volume.enabled to be true.');
+            }
+            assertValidVolumePercent(options.volume.initialPercent);
+        }
+
         this.options = {
             ...options,
-            connectTimeoutMs: options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS,
+            connectTimeoutMs,
         };
         this.connectionOptions = options.connection;
         this.audioSource = options.source;
@@ -47,6 +78,15 @@ export default class AudioManager {
             behaviors: {
                 noSubscriber: NoSubscriberBehavior.Play,
             },
+        });
+        this.audioPlayer.on('error', (error) => {
+            this.finishPlayback(error.resource);
+            this.reportError(error);
+        });
+        this.audioPlayer.on(AudioPlayerStatus.Idle, (oldState) => {
+            if ('resource' in oldState) {
+                this.finishPlayback(oldState.resource);
+            }
         });
     }
 
@@ -59,7 +99,7 @@ export default class AudioManager {
     }
 
     public get isConnected(): boolean {
-        return Boolean(this.connection);
+        return this.connection?.state.status === VoiceConnectionStatus.Ready;
     }
 
     public setConnection(options: VoiceConnectionOptions): void {
@@ -79,30 +119,55 @@ export default class AudioManager {
             throw new AudioManagerConfigError('Voice connection options are required before connecting.');
         }
 
+        this.cancelConnectAttempt();
+        const attempt = new AbortController();
+        this.connectAttempt = attempt;
         this.clearRenewTimer();
         this.playbackState = 'connecting';
-        this.connection?.destroy();
-        const connection = joinVoiceChannel({
-            guildId: this.connectionOptions.guildId,
-            channelId: this.connectionOptions.channelId,
-            adapterCreator: this.connectionOptions.adapterCreator,
-        });
-        this.connection = connection;
-        connection.subscribe(this.audioPlayer);
+
+        const previousConnection = this.connection;
+        this.connection = undefined;
+        let connection: VoiceConnection | undefined;
 
         try {
-            await entersState(connection, VoiceConnectionStatus.Ready, this.options.connectTimeoutMs);
+            previousConnection?.destroy();
+            connection = joinVoiceChannel({
+                guildId: this.connectionOptions.guildId,
+                channelId: this.connectionOptions.channelId,
+                adapterCreator: this.connectionOptions.adapterCreator,
+            });
+            this.connection = connection;
+            this.observeConnection(connection);
+            connection.subscribe(this.audioPlayer);
+
+            await entersState(
+                connection,
+                VoiceConnectionStatus.Ready,
+                AbortSignal.any([attempt.signal, AbortSignal.timeout(this.options.connectTimeoutMs)]),
+            );
         } catch (error) {
-            connection.destroy();
+            if (this.connectAttempt !== attempt) {
+                throw new AudioManagerStateError('Voice connection was stopped before it became ready.', {
+                    cause: error,
+                });
+            }
+
+            this.connectAttempt = undefined;
+            if (connection && connection.state.status !== VoiceConnectionStatus.Destroyed) {
+                connection.destroy();
+            }
             if (this.connection === connection) {
                 this.connection = undefined;
             }
             this.playbackState = 'stopped';
             throw error;
         }
-        if (this.connection !== connection) {
+
+        if (this.connectAttempt !== attempt || this.connection !== connection) {
             throw new AudioManagerStateError('Voice connection was stopped before it became ready.');
         }
+
+        this.connectAttempt = undefined;
         this.playbackState = 'ready';
         this.scheduleRenewal();
     }
@@ -114,7 +179,7 @@ export default class AudioManager {
             this.setSource(source);
         }
 
-        if (!this.connection) {
+        if (!this.isConnected) {
             throw new AudioManagerStateError('A voice connection is required before audio can be played.');
         }
 
@@ -132,17 +197,22 @@ export default class AudioManager {
                 inlineVolume: this.options.volume?.enabled === true,
             });
         } catch (error) {
-            if (this.ffmpeg === ffmpeg) {
-                this.stopCurrentPlayback();
+            if (this.ffmpeg !== ffmpeg) {
+                throw error instanceof AudioManagerStateError
+                    ? error
+                    : new AudioManagerStateError('Playback was stopped before ffmpeg became ready.', {
+                          cause: error,
+                      });
             }
+
+            this.stopCurrentPlayback();
             throw error;
         }
 
-        if (this.options.volume?.enabled === true && this.options.volume.initialPercent !== undefined) {
-            this.setVolume(this.options.volume.initialPercent);
-        }
-
         try {
+            if (this.options.volume?.enabled === true && this.options.volume.initialPercent !== undefined) {
+                this.setVolume(this.options.volume.initialPercent);
+            }
             this.audioPlayer.play(this.resource);
             this.playbackState = 'playing';
         } catch (error) {
@@ -184,6 +254,7 @@ export default class AudioManager {
             return;
         }
 
+        this.cancelConnectAttempt();
         this.clearRenewTimer();
         this.stopCurrentPlayback();
         this.audioPlayer.stop(true);
@@ -200,9 +271,7 @@ export default class AudioManager {
             throw new AudioManagerStateError('Volume control requires volume.enabled to be true.');
         }
 
-        if (!Number.isFinite(volumeInPercent) || volumeInPercent < 0 || volumeInPercent > 100) {
-            throw new AudioManagerConfigError('Volume must be between 0 and 100 percent.');
-        }
+        assertValidVolumePercent(volumeInPercent);
 
         if (!this.resource?.volume) {
             throw new AudioManagerStateError('No audio resource with volume control is currently active.');
@@ -216,6 +285,7 @@ export default class AudioManager {
             return;
         }
 
+        this.cancelConnectAttempt();
         this.clearRenewTimer();
         this.stopCurrentPlayback();
         this.audioPlayer.stop(true);
@@ -224,6 +294,10 @@ export default class AudioManager {
         this.connectionOptions = undefined;
         this.audioSource = undefined;
         this.playbackState = 'disposed';
+    }
+
+    public [Symbol.dispose](): void {
+        this.dispose();
     }
 
     private resolveSource(): ResolvedAudioSource {
@@ -238,7 +312,7 @@ export default class AudioManager {
                     source: this.audioSource,
                 };
             } catch (error) {
-                throw new AudioManagerConfigError(`Invalid audio source URL. Cause: ${String(error)}`);
+                throw new AudioManagerConfigError('Invalid audio source URL.', { cause: error });
             }
         }
 
@@ -251,14 +325,18 @@ export default class AudioManager {
     }
 
     private scheduleRenewal(): void {
-        const renewIntervalMs = this.options.renewIntervalMs ?? DEFAULT_RENEW_INTERVAL_MS;
+        const renewIntervalMs = this.options.renewIntervalMs;
 
-        if (renewIntervalMs === false) {
+        if (renewIntervalMs === undefined || renewIntervalMs === false) {
             return;
         }
 
         this.renewTimer = setTimeout(() => {
-            void this.start().catch(() => {
+            void this.start().catch((error: unknown) => {
+                if (this.playbackState === 'disposed') {
+                    return;
+                }
+
                 this.clearRenewTimer();
                 this.stopCurrentPlayback();
                 this.audioPlayer.stop(true);
@@ -266,6 +344,7 @@ export default class AudioManager {
                 this.connection?.destroy();
                 this.connection = undefined;
                 this.playbackState = 'stopped';
+                this.reportError(error);
             });
         }, renewIntervalMs);
 
@@ -274,11 +353,61 @@ export default class AudioManager {
         }
     }
 
+    private observeConnection(connection: VoiceConnection): void {
+        connection.on('error', (error) => {
+            this.reportError(error);
+        });
+        connection.on(VoiceConnectionStatus.Disconnected, () => this.handleDisconnectedConnection(connection));
+    }
+
+    private async handleDisconnectedConnection(connection: VoiceConnection): Promise<void> {
+        try {
+            await Promise.race([
+                entersState(connection, VoiceConnectionStatus.Signalling, DISCONNECT_RECOVERY_TIMEOUT_MS),
+                entersState(connection, VoiceConnectionStatus.Connecting, DISCONNECT_RECOVERY_TIMEOUT_MS),
+            ]);
+        } catch (error) {
+            if (this.connection !== connection) {
+                return;
+            }
+
+            this.clearRenewTimer();
+            this.stopCurrentPlayback();
+            this.audioPlayer.stop(true);
+            this.connection = undefined;
+            if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
+                connection.destroy();
+            }
+            this.playbackState = 'stopped';
+            this.reportError(error);
+        }
+    }
+
+    private finishPlayback(resource: AudioResource): void {
+        if (this.resource !== resource) {
+            return;
+        }
+
+        this.stopCurrentPlayback();
+        if (this.playbackState !== 'disposed') {
+            this.playbackState = this.isConnected ? 'ready' : 'stopped';
+        }
+    }
+
+    private reportError(error: unknown): void {
+        this.options.onError?.(error instanceof Error ? error : new Error(String(error)));
+    }
+
     private clearRenewTimer(): void {
         if (this.renewTimer) {
             clearTimeout(this.renewTimer);
             this.renewTimer = undefined;
         }
+    }
+
+    private cancelConnectAttempt(): void {
+        this.connectAttempt?.abort();
+        this.connectAttempt = undefined;
     }
 
     private stopCurrentPlayback(): void {
