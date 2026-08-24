@@ -24,7 +24,7 @@ function getLockFile() {
 function writeVersions(version) {
     const pkg = readJson(packageFilePath);
     pkg.version = version;
-    writeJson(packageFilePath, pkg, 2);
+    writeJson(packageFilePath, pkg, 4);
 
     const lock = getLockFile();
 
