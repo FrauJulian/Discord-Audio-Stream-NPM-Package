@@ -18,11 +18,13 @@ Create an [issue](https://git.lechner-systems.at/FrauJulian/Discord-Audio-Stream
 
 ## Installation
 
-Node.js `22.22.3` or newer is required.
+Node.js `24.x` is required.
 
 ```bash
-npm install discord-audio-stream @discordjs/voice prism-media @snazzah/davey opusscript
+npm install discord-audio-stream @discordjs/voice @discordjs/opus
 ```
+
+Use `opusscript@^0.0.8` only as a slower JavaScript fallback when `@discordjs/opus` cannot be installed.
 
 `ffmpeg` must be available either on the host PATH or through the optional `ffmpeg-static` package:
 
@@ -31,13 +33,6 @@ npm install ffmpeg-static
 ```
 
 Use `ffmpeg.mode: 'native'` for PATH-based ffmpeg and `ffmpeg.mode: 'static'` for `ffmpeg-static`.
-
-`libsodium-wrappers` is optional. Install it only when your runtime does not support `aes-256-gcm`:
-
-```bash
-node -e "console.log(require('node:crypto').getCiphers().includes('aes-256-gcm'))"
-npm install libsodium-wrappers
-```
 
 ## Basic Usage
 
@@ -93,6 +88,15 @@ manager.dispose(); // final cleanup; the manager cannot be reused
 `connect()` joins the configured voice channel. `play(source?)` starts playback on an existing connection. Use `start()`
 when you want both.
 
+For scoped playback, `AudioManager` supports explicit resource management:
+
+```ts
+{
+    using manager = new AudioManager(options);
+    await manager.start();
+} // disposed automatically
+```
+
 ## API
 
 ```ts
@@ -111,6 +115,7 @@ type AudioManagerOptions = {
     source?: { type: 'url'; url: string } | { type: 'file'; path: string };
     renewIntervalMs?: number | false;
     connectTimeoutMs?: number;
+    onError?: (error: Error) => void;
     volume?: {
         enabled?: boolean;
         initialPercent?: number;
@@ -120,12 +125,12 @@ type AudioManagerOptions = {
 
 ### Defaults
 
-| Option             | Default     |
-| ------------------ | ----------- |
-| `ffmpeg.mode`      | `'native'`  |
-| `connectTimeoutMs` | `20_000`    |
-| `renewIntervalMs`  | `5_400_000` |
-| `volume.enabled`   | `false`     |
+| Option             | Default    |
+| ------------------ | ---------- |
+| `ffmpeg.mode`      | `'native'` |
+| `connectTimeoutMs` | `20_000`   |
+| `renewIntervalMs`  | `false`    |
+| `volume.enabled`   | `false`    |
 
 ### Methods
 
@@ -141,6 +146,7 @@ type AudioManagerOptions = {
 | `stop()`                 | Stops playback, clears renewal, and destroys the voice connection.                 |
 | `setVolume(percent)`     | Sets volume from `0` to `100`; requires `volume.enabled: true`.                    |
 | `dispose()`              | Idempotently releases timers, ffmpeg, streams, player state, and voice connection. |
+| `[Symbol.dispose]()`     | Enables automatic cleanup with TypeScript's `using` declaration.                   |
 
 ### State
 
@@ -175,8 +181,9 @@ Default ffmpeg output is raw Discord-compatible PCM: `s16le`, `48000 Hz`, `2 cha
 You can override ffmpeg arguments through `ffmpeg.inputArgs` and `ffmpeg.outputArgs`. When you override them, you are
 responsible for keeping the output compatible with `StreamType.Raw`.
 
-By default, the manager schedules a renewal after `5_400_000 ms` so long-running streams can reconnect periodically.
-Set `renewIntervalMs: false` to disable it. `stop()` and `dispose()` always clear the renewal timer.
+Connection renewal is disabled by default because `@discordjs/voice` handles recoverable disconnects. Set
+`renewIntervalMs` only when an application has a measured need for periodic restarts. `stop()` and `dispose()` always
+clear the renewal timer.
 
 ## Errors
 
@@ -189,6 +196,9 @@ The package exports these error classes:
 
 Configuration problems, such as a missing source or invalid URL, throw `AudioManagerConfigError`. Invalid lifecycle
 operations, such as calling `pause()` while nothing is playing, throw `AudioManagerStateError`.
+
+Use `onError` to observe asynchronous audio player and voice connection errors. The manager cleans up failed playback
+and unrecoverable connections before invoking the callback.
 
 ## Development
 
